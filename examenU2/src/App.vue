@@ -1,5 +1,5 @@
 <script setup>
-import BookCards from './components/BookCards.vue'
+import BookCards from "./components/BookCards.vue";
 </script>
 
 <template>
@@ -8,6 +8,4 @@ import BookCards from './components/BookCards.vue'
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

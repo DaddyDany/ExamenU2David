@@ -1,14 +1,16 @@
 <template>
   <div
-    class="container"
+    class="scrollable-container"
     style="height: 100vh"
+    @scroll="handleScroll"
   >
-  <Carousel v-show="showElement"></Carousel>
-    <div style="display: flex; margin-top: 50px; padding-bottom: 20px">
+    <Carousel
+      :class="{ hidden: !showElement, 'fade-transition': true }"
+    ></Carousel>
+    <div style="display: flex; margin-top: 100px; padding-bottom: 20px">
       <h1 style="margin-bottom: 0">LIBRERIA</h1>
       <Modal @registroExitoso="actualizarLibros"></Modal>
     </div>
-
     <div style="margin-bottom: 50px; width: 50%">
       <div>
         <button
@@ -23,7 +25,7 @@
           Ordenar por fecha
         </button>
 
-         <button
+        <button
           @click="ordenarLibrosAutor"
           style="
             padding: 10px;
@@ -43,56 +45,58 @@
       <b-spinner class="spinner" type="grow"></b-spinner>
       <b-spinner class="spinner" type="grow"></b-spinner>
     </div>
-    <div v-if="books">
-      <TransitionGroup name="zoomDown" tag="div" class="row">
-        <div
-          class="col-4 bookCards"
-          v-for="book in books"
-          :key="book.id"
-        >
-          <div>
-            <b-card
-              :title="book.name"
-              img-src="https://picsum.photos/600/300/?image=1"
-              img-alt="Image"
-              img-top
-              tag="article"
-              style="max-width: 20rem"
-              class="mb-2"
-            >
-              <b-card-text class="description">
-                <h2>Autor: {{ book.autor }}</h2>
-              </b-card-text>
-              <div>
-                <p>
-                  <b>Fecha de publicación: </b
-                  >{{ dateFormat(book.fecha) }}
-                </p>
-              </div>
-              <div style="width: 100%; display: flex">
-                <div
-                  style="
-                    display: flex;
-                    width: 100%;
-                    justify-content: space-around;
-                  "
+    <div class="row">
+      <div class="col-9">
+        <div v-if="books">
+          <TransitionGroup name="zoomDown" tag="div" class="row">
+            <div class="col-4 bookCards" v-for="book in books" :key="book.id">
+              <div
+                class="drag-item"
+                draggable="true"
+                @dragstart="handleDragStart($event, book.id)"
+                @dragend="handleDragEnd(book.id)"
+              >
+                <b-card
+                  :title="book.name"
+                  img-src="https://picsum.photos/600/300/?image=1"
+                  img-alt="Image"
+                  img-top
+                  tag="article"
+                  style="max-width: 20rem"
+                  class="mb-2"
                 >
-                  <b-button
-                    variant="danger"
-                    style="width: 45%; padding: 8px"
-                    @click="deleteLibro(book.id)"
-                    >Eliminar</b-button
-                  >
-                  <h1>EditModal</h1>
-                </div>
+                  <b-card-text class="description">
+                    <h2>Autor: {{ book.autor }}</h2>
+                  </b-card-text>
+                  <div>
+                    <p>
+                      <b>Fecha de publicación: </b>{{ dateFormat(book.fecha) }}
+                    </p>
+                  </div>
+                  <div style="width: 100%; display: flex">
+                    <div
+                      style="
+                        display: flex;
+                        width: 100%;
+                        justify-content: space-around;
+                      "
+                    >
+                      <h1>EditModal</h1>
+                    </div>
+                  </div>
+                </b-card>
               </div>
-            </b-card>
-          </div>
+            </div>
+          </TransitionGroup>
         </div>
-      </TransitionGroup>
-    </div>
-    <div v-else>
-      <h3 class="text-center">Sin resultados</h3>
+        <div v-else>
+          <h3 class="text-center">Sin resultados</h3>
+        </div>
+      </div>
+      <div class="col-3">
+        <DeleteSquare @libroEliminado="actualizarLibros"></DeleteSquare>
+        <EditSquare></EditSquare>
+      </div>
     </div>
   </div>
 </template>
@@ -100,7 +104,9 @@
 <script>
 import Modal from "./Modal.vue";
 import EditModal from "./EditModal.vue";
-import Carousel from "./Carousel.vue"
+import Carousel from "./Carousel.vue";
+import DeleteSquare from "./DeleteSquare.vue";
+import EditSquare from "./EditSquare.vue";
 import axios from "axios";
 
 export default {
@@ -108,7 +114,9 @@ export default {
   components: {
     Modal,
     EditModal,
-    Carousel
+    Carousel,
+    DeleteSquare,
+    EditSquare,
   },
   data() {
     return {
@@ -117,10 +125,7 @@ export default {
       search: null,
       endDate: null,
       startDate: null,
-       lastScrollPosition: 0, // Valor inicial de la última posición de desplazamiento
-    scrollDistance: 0, // Valor inicial de la distancia de desplazamiento
-    showElement: true, // Valor inicial para mostrar el elemento
-    
+      showElement: true,
       loaded: false,
     };
   },
@@ -148,6 +153,15 @@ export default {
           console.error("Error en la peticion: ", e);
         });
     },
+    handleDragStart(event, bookId) {
+      event.dataTransfer.setData(
+        "application/json",
+        JSON.stringify({ bookId })
+      );
+    },
+    handleDragEnd(id) {
+      console.log("Drag done on element with id " + id);
+    },
     ordenarLibrosAutor() {
       this.loading = true;
       axios
@@ -160,34 +174,6 @@ export default {
           console.error("Error en la peticion: ", e);
         });
     },
-    deleteLibro(id) {
-      this.$swal({
-        title: "¿Estas seguro?",
-        text: "No podras revertir este cambio",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonColor: "#3085d6",
-        cancelButtonColor: "#d33",
-        cancelButtonText: "cancelar",
-        confirmButtonText: "Si, eliminar",
-      }).then((result) => {
-        if (result.isConfirmed) {
-          axios
-            .delete(`http://localhost:8080/api/library/${id}`)
-            .then((response) => {
-              this.$swal({
-                title: "Eliminada",
-                text: "El libro ha sido eliminado con exito",
-                icon: "success",
-              });
-              this.actualizarLibros();
-            })
-            .catch((error) => {
-              console.error(error);
-            });
-        }
-      });
-    },
     dateFormat(date) {
       let dateParts = date.split("-");
       let year = dateParts[0];
@@ -196,48 +182,39 @@ export default {
       let newDate = day + "-" + month + "-" + year;
       return newDate;
     },
-   onScroll() {
-  const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
-  
-  // Validar si el usuario se está desplazando hacia arriba o hacia abajo
-  if (currentScrollPosition < this.lastScrollPosition) {
-    // Si el usuario se desplaza hacia arriba, resetear la distancia de desplazamiento
-    this.scrollDistance = 0;
-    // Volver a mostrar el elemento si estaba oculto
-    if (!this.showElement) {
-      this.showElement = true;
-    }
-  } else {
-    // Si el usuario se desplaza hacia abajo, aumentar la distancia de desplazamiento
-    this.scrollDistance += Math.abs(currentScrollPosition - this.lastScrollPosition);
-    
-    // Ocultar el elemento si la distancia de desplazamiento supera cierto umbral
-    if (this.scrollDistance > 100) { // Cambia 100 al valor deseado
-      this.showElement = false;
-    }
-  }
-  
-  this.lastScrollPosition = currentScrollPosition;
-}
+    handleScroll() {
+      const currentScrollPosition = window.scrollY;
+      const scrollThreshold = 0;
+      if (currentScrollPosition > scrollThreshold) {
+        setTimeout(() => {
+          this.showElement = false;
+        }, 100);
+      } else {
+        setTimeout(() => {
+          this.showElement = true;
+        }, 100);
+      }
+      this.lastScrollPosition = currentScrollPosition;
+    },
   },
   mounted() {
     this.loading = true;
-        window.addEventListener("scroll", this.onScroll);
+    window.addEventListener("scroll", this.handleScroll);
 
-      axios
-        .get("http://localhost:8080/api/library")
-        .then((response) => {
-          this.books = response.data;
-        })
-        .catch((e) => {
-          console.error("Error en la peticion: ", e);
-        })
-        .finally(() => {
-          this.loading = false;
-        });
+    axios
+      .get("http://localhost:8080/api/library")
+      .then((response) => {
+        this.books = response.data;
+      })
+      .catch((e) => {
+        console.error("Error en la peticion: ", e);
+      })
+      .finally(() => {
+        this.loading = false;
+      });
   },
   beforeDestroy() {
-    window.removeEventListener("scroll", this.onScroll);
+    window.removeEventListener("scroll", this.handleScroll);
   },
 };
 </script>
@@ -257,7 +234,32 @@ export default {
   margin: 7px;
 }
 
+.scrollable-container {
+  margin: 50px;
+  height: auto;
+  transition: height 0.3s ease;
+  min-height: 100vh;
+}
+
+.fade-transition {
+  transition: opacity 0.3s ease;
+}
+
 .hidden {
+  opacity: 0;
+  height: 10px;
   display: none;
 }
-</Style>
+
+.square {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 80%;
+  margin-left: auto;
+  height: 200px;
+  border: 1px solid black;
+  border-radius: 10px;
+  margin-top: 100px;
+}
+</style>
